@@ -1304,9 +1304,28 @@ input[type="text"]:focus,
   justify-content: space-between;
   margin-top: 24px;
   border-radius: 8px;
-  max-width: 584px;
   width: 100%;
 }
+
+/* ================================
+   Стили для блоков информации об оплате
+   ================================ */
+
+.payment-calculations {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  flex-direction: row;
+  align-items: center;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+
+
+
+
+
 
 /* Блок выбора расчета */
 
@@ -1380,10 +1399,12 @@ input[type="text"]:focus,
 }
 
 .total-amount-value {
+  display: flex;
   font-size: 30px;
   color: var(--white);
   font-weight: bold;
   font-family: var(--font-family);
+  flex-direction: row;
 }
 
 /*Блок модального окна редактирования и удаления*/

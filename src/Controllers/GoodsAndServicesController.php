@@ -1,7 +1,11 @@
 <?php
-
-
 namespace Source\Controllers;
+
+// Отключаем вывод ошибок для AJAX методов
+if (isset($_POST['operation_type'])) {
+    error_reporting(0);
+    ini_set('display_errors', 0);
+}
 
 use Core\Controller\Controller;
 use Exception;
@@ -22,6 +26,12 @@ class GoodsAndServicesController extends Controller
 
     public function index()
     {
+        // Если это POST запрос, обрабатываем его
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleServiceSalesPost();
+            return;
+        }
+
         $company_service = new CompanyService($this->getDatabase());
         $company_type_service = new CompanyTypeService($this->getDatabase());
         $suppliers_service = new SupplierService($this->getDatabase());
@@ -42,6 +52,31 @@ class GoodsAndServicesController extends Controller
             'suppliers_service' => $suppliers_service,
             'car_classes_service' => $car_classes_service // Добавлено в массив данных
         ]);
+    }
+
+    /**
+     * Обработка POST запросов для страницы service_sales
+     */
+    private function handleServiceSalesPost()
+    {
+        // Определяем тип операции по скрытому полю или другим признакам
+        $operationType = $this->request()->input('operation_type') ?? '';
+        
+        if ($operationType === 'service') {
+            $this->addNewServiceSale();
+        } elseif ($operationType === 'product') {
+            $this->addNewProductSale();
+        } else {
+            // Если тип операции не указан, пытаемся определить по содержимому формы
+            if ($this->request()->input('services')) {
+                $this->addNewServiceSale();
+            } elseif ($this->request()->input('products')) {
+                $this->addNewProductSale();
+            } else {
+                $this->session()->set('error', 'Не удалось определить тип операции.');
+                $this->redirect('/admin/dashboard/service_sales');
+            }
+        }
     }
 
     public function addNewGood()
@@ -209,6 +244,7 @@ class GoodsAndServicesController extends Controller
         $paymentType = $this->request()->input('payment_type');
         $operatorName = $this->getAuth()->getUser()->username(); // Получаем имя текущего оператора
         $grandTotal = 0;
+        $receivedAmount = (float)($this->request()->input('received_amount') ?? 0);
 
         // Инициализация чека
         $checkNumber = date('YmdHis');
@@ -239,8 +275,6 @@ class GoodsAndServicesController extends Controller
             $lineTotal = $price * $amount;
             $grandTotal += $lineTotal;
 
-
-
             // Уменьшаем остаток товара
             $newAmount = max(0, $productRow['amount'] - $amount);
             $this->getDatabase()->update('Product', ['amount' => $newAmount], [
@@ -264,6 +298,9 @@ class GoodsAndServicesController extends Controller
             $cash = (float)($this->request()->input('cash_amount') ?? 0);
             $card = (float)($this->request()->input('card_amount') ?? 0);
         }
+        
+        // Рассчитываем сдачу
+        $changeAmount = max(0, $receivedAmount - $grandTotal);
 
         try {
             $checkId = $this->createCheck([
@@ -275,10 +312,11 @@ class GoodsAndServicesController extends Controller
                 'discount' => 0,
                 'operator_name' => $operatorName,
                 'car_number' => null,
-                'change_amount' => 0,
+                'change_amount' => $changeAmount,
                 'report_type' => 'product',
                 'car_model' => null,
-                'car_brand' => null
+                'car_brand' => null,
+                'payment_status' => 'pending'
             ]);
 
             $this->addCheckItems($checkId, $items);
@@ -442,6 +480,8 @@ class GoodsAndServicesController extends Controller
         $operatorName = $this->getAuth()->getUser()->username();
         $grandTotal = 0;
         $items = [];
+        $markup = (float)($this->request()->input('markup') ?? 0);
+        $receivedAmount = (float)($this->request()->input('received_amount') ?? 0);
 
         foreach ($serviceLines as $line) {
             $servId = $line['service_id'] ?? null;
@@ -460,6 +500,12 @@ class GoodsAndServicesController extends Controller
                 'total' => $price
             ];
         }
+
+        // Добавляем наценку к общей сумме
+        $grandTotal += $markup;
+        
+        // Рассчитываем сдачу с учетом финальной суммы
+        $changeAmount = max(0, $receivedAmount - $grandTotal);
 
         // Определяем суммы оплаты ДО вставки Service_Sale
         $cash = 0;
@@ -485,7 +531,9 @@ class GoodsAndServicesController extends Controller
                 'employee_id' => $employeeId,
                 'car_id' => $carId,
                 'total_amount' => $price,
-                'payment_method' => $paymentType
+                'payment_method' => $paymentType,
+                'markup' => $markup,
+                'sale_date' => date('Y-m-d H:i:s')
             ]);
         }
 
@@ -499,10 +547,12 @@ class GoodsAndServicesController extends Controller
                 'discount' => 0,
                 'operator_name' => $operatorName,
                 'car_number' => $car['state_number'],
-                'change_amount' => 0,
+                'change_amount' => $changeAmount,
                 'report_type' => 'service',
                 'car_model' => $car['car_model'],
-                'car_brand' => $car['car_brand']
+                'car_brand' => $car['car_brand'],
+                'markup' => $markup,
+                'payment_status' => 'pending'
             ]);
 
             $this->addCheckItems($checkId, $items);
@@ -540,10 +590,33 @@ class GoodsAndServicesController extends Controller
             // Получаем данные позиций из таблицы check_items
             $checkItems = $this->getDatabase()->get('check_items', ['check_id' => $checkId]);
 
+            // Для услуг получаем данные о наценке
+            $markupData = [];
+            if ($check['report_type'] === 'service') {
+                // Получаем данные о наценке из Service_Sale
+                $serviceSales = $this->getDatabase()->query("
+                    SELECT Service.name, Service_Sale.markup
+                    FROM Service_Sale 
+                    JOIN Service ON Service_Sale.service_id = Service.id
+                    JOIN Car ON Service_Sale.car_id = Car.id
+                    WHERE Car.state_number = :car_number 
+                    AND DATE(Service_Sale.sale_date) = DATE(:sale_date)
+                ", [
+                    'car_number' => $check['car_number'],
+                    'sale_date' => $check['date']
+                ]);
+                
+                foreach ($serviceSales as $sale) {
+                    $markupData[$sale['name']] = $sale['markup'];
+                }
+            }
+
             // Передаем данные чека и позиций в вид
             $this->render('/admin/preview_check', [
                 'check' => $check,
-                'items' => $checkItems
+                'items' => $checkItems,
+                'markupData' => $markupData,
+                'auth' => $this->getAuth()
             ]);
         } catch (Exception $e) {
             $this->session()->set('error', 'Ошибка при загрузке чека: ' . $e->getMessage());
@@ -839,5 +912,790 @@ class GoodsAndServicesController extends Controller
             echo json_encode(['success' => false, 'client' => null]);
         }
         exit;
+    }
+
+    /**
+     * Создание продажи со статусом "pending" (AJAX)
+     */
+    public function createPendingSale()
+    {
+        // Очищаем любой предыдущий вывод
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        header('Content-Type: application/json');
+        
+        try {
+            // Логируем все полученные данные
+            error_log('createPendingSale called. POST data: ' . print_r($_POST, true));
+            file_put_contents('./debug.log', date('Y-m-d H:i:s') . ' - createPendingSale called with POST: ' . print_r($_POST, true) . "\n", FILE_APPEND);
+            
+            $operationType = $_POST['operation_type'] ?? '';
+            error_log('Operation type: ' . $operationType);
+            file_put_contents('./debug.log', date('Y-m-d H:i:s') . ' - Operation type: ' . $operationType . "\n", FILE_APPEND);
+            
+            if ($operationType === 'service') {
+                // Создаем pending продажу услуг
+                error_log('Creating pending service sale');
+                $result = $this->createPendingServiceSale();
+            } elseif ($operationType === 'product') {
+                // Создаем pending продажу товаров
+                error_log('Creating pending product sale');
+                $result = $this->createPendingProductSale();
+            } else {
+                error_log('Invalid operation type: ' . $operationType);
+                $response = json_encode(['success' => false, 'message' => 'Неверный тип операции: ' . $operationType]);
+                error_log('Response: ' . $response);
+                echo $response;
+                exit;
+            }
+            
+            error_log('Create pending sale result: ' . print_r($result, true));
+            
+            if ($result['success']) {
+                $response = json_encode(['success' => true, 'sale' => $result['sale']]);
+                error_log('Success response: ' . $response);
+                echo $response;
+            } else {
+                $response = json_encode(['success' => false, 'message' => $result['message']]);
+                error_log('Error response: ' . $response);
+                echo $response;
+            }
+        } catch (Exception $e) {
+            error_log('Exception in createPendingSale: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+            $response = json_encode(['success' => false, 'message' => 'Ошибка при создании продажи: ' . $e->getMessage()]);
+            error_log('Exception response: ' . $response);
+            echo $response;
+        }
+        exit;
+    }
+    
+    /**
+     * Подтверждение платежа (AJAX)
+     */
+    public function confirmPayment()
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            $saleId = $_POST['sale_id'] ?? null;
+            $type = $_POST['type'] ?? '';
+            
+            if (!$saleId || !$type) {
+                echo json_encode(['success' => false, 'message' => 'Неверные параметры']);
+                exit;
+            }
+            
+            if ($type === 'service') {
+                $result = $this->confirmServicePayment($saleId);
+            } elseif ($type === 'product') {
+                $result = $this->confirmProductPayment($saleId);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Неверный тип операции']);
+                exit;
+            }
+            
+            if ($result['success']) {
+                echo json_encode([
+                    'success' => true, 
+                    'message' => 'Платеж подтвержден',
+                    'check_url' => $result['check_url']
+                ]);
+            } else {
+                echo json_encode(['success' => false, 'message' => $result['message']]);
+            }
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => 'Ошибка при подтверждении платежа: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+    
+    /**
+     * Отклонение платежа (AJAX)
+     */
+    public function rejectPayment()
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            $saleId = $_POST['sale_id'] ?? null;
+            $type = $_POST['type'] ?? '';
+            $reason = $_POST['reason'] ?? 'Отклонено пользователем';
+            
+            if (!$saleId || !$type) {
+                echo json_encode(['success' => false, 'message' => 'Неверные параметры']);
+                exit;
+            }
+            
+            if ($type === 'service') {
+                $result = $this->rejectServicePayment($saleId, $reason);
+            } elseif ($type === 'product') {
+                $result = $this->rejectProductPayment($saleId, $reason);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Неверный тип операции']);
+                exit;
+            }
+            
+            if ($result['success']) {
+                echo json_encode(['success' => true, 'message' => 'Платеж отклонен']);
+            } else {
+                echo json_encode(['success' => false, 'message' => $result['message']]);
+            }
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => 'Ошибка при отклонении платежа: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    /**
+     * Обновление статуса платежа
+     */
+    public function updatePaymentStatus()
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            // Получаем данные из JSON в теле запроса
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            $saleId = $input['sale_id'] ?? null;
+            $status = $input['status'] ?? null;
+            $type = $input['type'] ?? '';
+            
+            if (!$saleId || !$status || !$type) {
+                echo json_encode(['success' => false, 'message' => 'Не все параметры предоставлены']);
+                exit;
+            }
+            
+            // Обновляем статус в таблице checks
+            $result = $this->getDatabase()->update('checks', [
+                'payment_status' => $status
+            ], ['id' => $saleId]);
+
+            if ($result === false) {
+                echo json_encode(['success' => false, 'message' => 'Ошибка при обновлении статуса']);
+                exit;
+            }
+
+            // Логируем изменение статуса
+            $this->getEventManager()->addListener('log.action', new LogActionListener());
+            $payload = [
+                'action_name' => 'Обновление статуса платежа',
+                'actor_id' => $this->getAuth()->getUser()->id(),
+                'action_info' => [
+                    'ID чека' => $saleId,
+                    'Новый статус' => $status,
+                    'Тип операции' => $type,
+                    'Пользователь' => $this->getAuth()->getRole()->name() . " " .
+                        $this->getAuth()->getUser()->username() . " " .
+                        $this->getAuth()->getUser()->lastname()
+                ]
+            ];
+            $event = new LogActionEvent($payload);
+            $this->getEventManager()->dispatch($event);
+
+            echo json_encode(['success' => true, 'message' => 'Статус успешно обновлен']);
+
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => 'Ошибка при обновлении статуса: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    /**
+     * Отмена операции (AJAX)
+     */
+    public function cancelOperation()
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            $checkId = $_POST['check_id'] ?? null;
+            $reason = $_POST['reason'] ?? 'Отмена операции';
+            
+            if (!$checkId) {
+                echo json_encode(['success' => false, 'message' => 'ID чека не указан']);
+                exit;
+            }
+
+            // Получаем данные чека
+            $check = $this->getDatabase()->first_found_in_db('checks', ['id' => $checkId]);
+            if (!$check) {
+                echo json_encode(['success' => false, 'message' => 'Чек не найден']);
+                exit;
+            }
+
+            // Обновляем статус платежа
+            $this->getDatabase()->update('checks', [
+                'payment_status' => 'cancelled'
+            ], ['id' => $checkId]);
+
+            // Если это продажа товаров, возвращаем товары на склад
+            if ($check['report_type'] === 'product') {
+                $checkItems = $this->getDatabase()->get('check_items', ['check_id' => $checkId]);
+                
+                foreach ($checkItems as $item) {
+                    // Находим товар по названию и возвращаем количество
+                    $product = $this->getDatabase()->first_found_in_db('Product', ['name' => $item['name']]);
+                    if ($product) {
+                        $newAmount = $product['amount'] + $item['quantity'];
+                        $this->getDatabase()->update('Product', [
+                            'amount' => $newAmount
+                        ], ['id' => $product['id']]);
+                    }
+                }
+            }
+
+            // Логируем отмену
+            $this->getEventManager()->addListener('log.action', new LogActionListener());
+            $payload = [
+                'action_name' => 'Отмена операции',
+                'actor_id' => $this->getAuth()->getUser()->id(),
+                'action_info' => [
+                    'ID чека' => $checkId,
+                    'Причина' => $reason,
+                    'Тип операции' => $check['report_type'],
+                    'Сумма' => $check['total'],
+                    'Пользователь' => $this->getAuth()->getRole()->name() . " " .
+                        $this->getAuth()->getUser()->username() . " " .
+                        $this->getAuth()->getUser()->lastname()
+                ]
+            ];
+            $event = new LogActionEvent($payload);
+            $this->getEventManager()->dispatch($event);
+
+            echo json_encode(['success' => true, 'message' => 'Операция успешно отменена']);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => 'Ошибка при отмене операции: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+    
+    // ================================
+    // Приватные методы для управления платежами
+    // ================================
+    
+    /**
+     * Создание pending продажи услуг
+     */
+    private function createPendingServiceSale()
+    {
+        try {
+            // Валидация
+            $validation = $this->request()->validate([
+                'employee_id' => ['required'],
+                'state_number' => ['required'],
+                'payment_type' => ['required']
+            ], [
+                'employee_id' => 'Сотрудник',
+                'state_number' => 'Гос. номер',
+                'payment_type' => 'Тип оплаты'
+            ]);
+
+            if (!$validation) {
+                return ['success' => false, 'message' => 'Не заполнены обязательные поля.'];
+            }
+
+            $serviceLines = $this->request()->input('services');
+            if (!is_array($serviceLines) || empty($serviceLines)) {
+                return ['success' => false, 'message' => 'Не выбрано ни одной услуги.'];
+            }
+
+            // Обработка данных клиента и машины (копируем логику из addNewServiceSale)
+            $clientId = $this->processClientAndCar();
+            if (!$clientId) {
+                return ['success' => false, 'message' => 'Ошибка при обработке данных клиента/машины'];
+            }
+
+            $employeeId = $this->request()->input('employee_id');
+            $paymentType = $this->request()->input('payment_type');
+            $operatorName = $this->getAuth()->getUser()->username();
+            $grandTotal = 0;
+            $items = [];
+            $markup = (float)($this->request()->input('markup') ?? 0);
+            $receivedAmount = (float)($this->request()->input('received_amount') ?? 0);
+
+            foreach ($serviceLines as $line) {
+                $servId = $line['service_id'] ?? null;
+                if (!$servId) continue;
+
+                $serviceRow = $this->getDatabase()->first_found_in_db('Service', ['id' => $servId]);
+                if (!$serviceRow) continue;
+
+                $price = (float)$serviceRow['price'];
+                $grandTotal += $price;
+
+                $items[] = [
+                    'name' => $serviceRow['name'],
+                    'quantity' => 1,
+                    'price' => $price,
+                    'total' => $price
+                ];
+            }
+
+            // Добавляем наценку к общей сумме
+            $grandTotal += $markup;
+            
+            // Рассчитываем сдачу
+            $changeAmount = max(0, $receivedAmount - $grandTotal);
+
+            // Определяем суммы оплаты
+            $cash = 0;
+            $card = 0;
+            if ($paymentType === 'cash') {
+                $cash = $grandTotal;
+            } elseif ($paymentType === 'card') {
+                $card = $grandTotal;
+            } elseif ($paymentType === 'cash_card') {
+                $cash = (float)($this->request()->input('cash_amount') ?? 0);
+                $card = (float)($this->request()->input('card_amount') ?? 0);
+            }
+
+            // Создаем чек со статусом pending
+            $checkId = $this->createCheck([
+                'check_number' => 'CHK' . time(),
+                'date' => date('Y-m-d H:i:s'),
+                'total' => $grandTotal,
+                'cash' => $cash,
+                'card' => $card,
+                'discount' => 0,
+                'operator_name' => $operatorName,
+                'car_number' => $this->request()->input('state_number'),
+                'change_amount' => $changeAmount,
+                'report_type' => 'service',
+                'car_model' => null,
+                'car_brand' => $this->request()->input('car_brand'),
+                'markup' => $markup,
+                'payment_status' => 'pending'
+            ]);
+
+            $this->addCheckItems($checkId, $items);
+
+            // Создаем Service_Sale записи
+            $car = $this->getDatabase()->first_found_in_db('Car', ['state_number' => $this->request()->input('state_number')]);
+            if (!$car) {
+                return ['success' => false, 'message' => 'Машина не найдена'];
+            }
+            
+            foreach ($serviceLines as $line) {
+                $servId = $line['service_id'] ?? null;
+                if (!$servId) continue;
+                
+                $this->getDatabase()->insert('Service_Sale', [
+                    'service_id' => $servId,
+                    'employee_id' => $employeeId,
+                    'car_id' => $car['id'],
+                    'total_amount' => $grandTotal,
+                    'payment_method' => $paymentType,
+                    'markup' => $markup,
+                    'sale_date' => date('Y-m-d H:i:s')
+                ]);
+            }
+
+            $result = [
+                'success' => true,
+                'sale' => [
+                    'id' => $checkId,
+                    'type' => 'service',
+                    'total' => $grandTotal
+                ]
+            ];
+            
+            error_log('createPendingServiceSale returning: ' . print_r($result, true));
+            return $result;
+
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Ошибка при создании продажи: ' . $e->getMessage()];
+        }
+    }
+    
+    /**
+     * Создание pending продажи товаров
+     */
+    private function createPendingProductSale()
+    {
+        try {
+            $validation = $this->request()->validate([
+                'payment_type' => ['required']
+            ], [
+                'payment_type' => 'Тип оплаты'
+            ]);
+
+            if (!$validation) {
+                return ['success' => false, 'message' => 'Не выбран тип оплаты.'];
+            }
+
+            $lines = $this->request()->input('products');
+            if (!is_array($lines) || empty($lines)) {
+                return ['success' => false, 'message' => 'Не выбраны товары.'];
+            }
+
+            $paymentType = $this->request()->input('payment_type');
+            $operatorName = $this->getAuth()->getUser()->username();
+            $grandTotal = 0;
+            $markup = (float)($this->request()->input('markup') ?? 0);
+            $receivedAmount = (float)($this->request()->input('received_amount') ?? 0);
+            $items = [];
+
+            foreach ($lines as $line) {
+                $productWarehouseVal = $line['product_warehouse'] ?? null;
+                $amount = (int)($line['amount'] ?? 0);
+
+                if (!$productWarehouseVal || $amount < 1) {
+                    continue;
+                }
+
+                list($productId, $warehouseId) = explode('_', $productWarehouseVal);
+
+                $productRow = $this->getDatabase()->first_found_in_db('Product', [
+                    'id' => $productId,
+                    'warehouse_id' => $warehouseId
+                ]);
+
+                if (!$productRow) {
+                    continue;
+                }
+
+                $price = (float)$productRow['sale_price'];
+                $lineTotal = $price * $amount;
+                $grandTotal += $lineTotal;
+
+                $items[] = [
+                    'name' => $productRow['name'],
+                    'quantity' => $amount,
+                    'price' => $price,
+                    'total' => $lineTotal
+                ];
+            }
+
+            // Добавляем наценку к общей сумме
+            $grandTotal += $markup;
+
+            if ($paymentType === 'cash') {
+                $cash = $grandTotal;
+                $card = 0;
+            } elseif ($paymentType === 'card') {
+                $cash = 0;
+                $card = $grandTotal;
+            } elseif ($paymentType === 'cash_card') {
+                $cash = (float)($this->request()->input('cash_amount') ?? 0);
+                $card = (float)($this->request()->input('card_amount') ?? 0);
+            }
+            
+            // Рассчитываем сдачу
+            $changeAmount = max(0, $receivedAmount - $grandTotal);
+
+            // Создаем чек со статусом pending
+            $checkId = $this->createCheck([
+                'check_number' => date('YmdHis'),
+                'date' => date('Y-m-d H:i:s'),
+                'total' => $grandTotal,
+                'cash' => $cash,
+                'card' => $card,
+                'discount' => 0,
+                'operator_name' => $operatorName,
+                'car_number' => null,
+                'change_amount' => $changeAmount,
+                'report_type' => 'product',
+                'car_model' => null,
+                'car_brand' => null,
+                'markup' => $markup,
+                'payment_status' => 'pending'
+            ]);
+
+            $this->addCheckItems($checkId, $items);
+
+            $result = [
+                'success' => true,
+                'sale' => [
+                    'id' => $checkId,
+                    'type' => 'product',
+                    'total' => $grandTotal
+                ]
+            ];
+            
+            error_log('createPendingProductSale returning: ' . print_r($result, true));
+            return $result;
+
+        } catch (Exception $e) {
+            error_log('Exception in createPendingProductSale: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+            return ['success' => false, 'message' => 'Ошибка при создании продажи: ' . $e->getMessage()];
+        }
+    }
+    
+    /**
+     * Подтверждение платежа за услуги
+     */
+    private function confirmServicePayment($saleId)
+    {
+        try {
+            // Обновляем статус платежа
+            $this->getDatabase()->update('checks', [
+                'payment_status' => 'completed'
+            ], ['id' => $saleId]);
+
+            // Логируем подтверждение
+            $this->getEventManager()->addListener('log.action', new LogActionListener());
+            $payload = [
+                'action_name' => 'Подтверждение платежа за услуги',
+                'actor_id' => $this->getAuth()->getUser()->id(),
+                'action_info' => [
+                    'ID чека' => $saleId,
+                    'Тип операции' => 'service',
+                    'Пользователь' => $this->getAuth()->getRole()->name() . " " .
+                        $this->getAuth()->getUser()->username() . " " .
+                        $this->getAuth()->getUser()->lastname()
+                ]
+            ];
+            $event = new LogActionEvent($payload);
+            $this->getEventManager()->dispatch($event);
+
+            return [
+                'success' => true,
+                'check_url' => '/admin/dashboard/check/preview/' . $saleId
+            ];
+
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Ошибка при подтверждении платежа: ' . $e->getMessage()];
+        }
+    }
+    
+    /**
+     * Подтверждение платежа за товары
+     */
+    private function confirmProductPayment($saleId)
+    {
+        try {
+            // Обновляем статус платежа
+            $this->getDatabase()->update('checks', [
+                'payment_status' => 'completed'
+            ], ['id' => $saleId]);
+
+            // Уменьшаем остатки товаров на складе
+            $checkItems = $this->getDatabase()->get('check_items', ['check_id' => $saleId]);
+            foreach ($checkItems as $item) {
+                $product = $this->getDatabase()->first_found_in_db('Product', ['name' => $item['name']]);
+                if ($product) {
+                    $newAmount = max(0, $product['amount'] - $item['quantity']);
+                    $this->getDatabase()->update('Product', ['amount' => $newAmount], ['id' => $product['id']]);
+                }
+            }
+
+            // Логируем подтверждение
+            $this->getEventManager()->addListener('log.action', new LogActionListener());
+            $payload = [
+                'action_name' => 'Подтверждение платежа за товары',
+                'actor_id' => $this->getAuth()->getUser()->id(),
+                'action_info' => [
+                    'ID чека' => $saleId,
+                    'Тип операции' => 'product',
+                    'Пользователь' => $this->getAuth()->getRole()->name() . " " .
+                        $this->getAuth()->getUser()->username() . " " .
+                        $this->getAuth()->getUser()->lastname()
+                ]
+            ];
+            $event = new LogActionEvent($payload);
+            $this->getEventManager()->dispatch($event);
+
+            return [
+                'success' => true,
+                'check_url' => '/admin/dashboard/check/preview/' . $saleId
+            ];
+
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Ошибка при подтверждении платежа: ' . $e->getMessage()];
+        }
+    }
+    
+    /**
+     * Отклонение платежа за услуги
+     */
+    private function rejectServicePayment($saleId, $reason)
+    {
+        try {
+            // Обновляем статус платежа
+            $this->getDatabase()->update('checks', [
+                'payment_status' => 'rejected'
+            ], ['id' => $saleId]);
+
+            // Логируем отклонение
+            $this->getEventManager()->addListener('log.action', new LogActionListener());
+            $payload = [
+                'action_name' => 'Отклонение платежа за услуги',
+                'actor_id' => $this->getAuth()->getUser()->id(),
+                'action_info' => [
+                    'ID чека' => $saleId,
+                    'Причина' => $reason,
+                    'Тип операции' => 'service',
+                    'Пользователь' => $this->getAuth()->getRole()->name() . " " .
+                        $this->getAuth()->getUser()->username() . " " .
+                        $this->getAuth()->getUser()->lastname()
+                ]
+            ];
+            $event = new LogActionEvent($payload);
+            $this->getEventManager()->dispatch($event);
+
+            return ['success' => true];
+
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Ошибка при отклонении платежа: ' . $e->getMessage()];
+        }
+    }
+    
+    /**
+     * Отклонение платежа за товары
+     */
+    private function rejectProductPayment($saleId, $reason)
+    {
+        try {
+            // Обновляем статус платежа
+            $this->getDatabase()->update('checks', [
+                'payment_status' => 'rejected'
+            ], ['id' => $saleId]);
+
+            // Логируем отклонение
+            $this->getEventManager()->addListener('log.action', new LogActionListener());
+            $payload = [
+                'action_name' => 'Отклонение платежа за товары',
+                'actor_id' => $this->getAuth()->getUser()->id(),
+                'action_info' => [
+                    'ID чека' => $saleId,
+                    'Причина' => $reason,
+                    'Тип операции' => 'product',
+                    'Пользователь' => $this->getAuth()->getRole()->name() . " " .
+                        $this->getAuth()->getUser()->username() . " " .
+                        $this->getAuth()->getUser()->lastname()
+                ]
+            ];
+            $event = new LogActionEvent($payload);
+            $this->getEventManager()->dispatch($event);
+
+            return ['success' => true];
+
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Ошибка при отклонении платежа: ' . $e->getMessage()];
+        }
+    }
+    
+    /**
+     * Обработка клиента и машины (вынесено в отдельный метод)
+     */
+    private function processClientAndCar()
+    {
+        try {
+            // Обработка данных клиента
+            $clientLastName = $this->request()->input('client_last_name');
+            $clientFirstName = $this->request()->input('client_first_name');
+            $clientPatronymic = $this->request()->input('client_patronymic');
+            $clientPhone = $this->request()->input('client_phone');
+            
+            // Очищаем телефон от маски
+            $clientPhone = preg_replace('/[^0-9]/', '', $clientPhone);
+            if (strlen($clientPhone) === 11 && substr($clientPhone, 0, 1) === '7') {
+                $clientPhone = substr($clientPhone, 1);
+            }
+            $clientPhone = '+7' . $clientPhone;
+
+            $stateNumber = $this->request()->input('state_number');
+            $newClassId = $this->request()->input('class_id');
+
+            // Ищем существующего клиента по номеру машины
+            $existingClient = null;
+            $sql = "SELECT DISTINCT c.id, c.last_name, c.name AS first_name, c.patronymic, c.phone
+                    FROM Client c
+                    JOIN Client_cars cc ON c.id = cc.client_id
+                    JOIN Car car ON cc.car_id = car.id
+                    WHERE car.state_number = ?";
+            $clients = $this->getDatabase()->query($sql, [$stateNumber]);
+            
+            if ($clients && count($clients) > 0) {
+                $existingClient = $clients[0];
+            }
+
+            // Создаем или обновляем клиента
+            $clientId = null;
+            
+            if ($existingClient) {
+                // Обновляем существующего клиента, если ФИО изменились
+                $needUpdate = false;
+                $updateData = [];
+                
+                if ($existingClient['last_name'] !== $clientLastName) {
+                    $updateData['last_name'] = $clientLastName;
+                    $needUpdate = true;
+                }
+                if ($existingClient['first_name'] !== $clientFirstName) {
+                    $updateData['name'] = $clientFirstName;
+                    $needUpdate = true;
+                }
+                if ($existingClient['patronymic'] !== $clientPatronymic) {
+                    $updateData['patronymic'] = $clientPatronymic;
+                    $needUpdate = true;
+                }
+                
+                if ($needUpdate) {
+                    $this->getDatabase()->update('Client', $updateData, ['id' => $existingClient['id']]);
+                }
+                $clientId = $existingClient['id'];
+            } else {
+                // Создаем нового клиента
+                $clientId = $this->getDatabase()->insert('Client', [
+                    'last_name' => $clientLastName,
+                    'name' => $clientFirstName,
+                    'patronymic' => $clientPatronymic,
+                    'phone' => $clientPhone
+                ]);
+            }
+
+            // Поиск или создание машины
+            $car = $this->getDatabase()->first_found_in_db('Car', ['state_number' => $stateNumber]);
+
+            if (!$car) {
+                $carId = $this->getDatabase()->insert('Car', [
+                    'state_number' => $stateNumber,
+                    'car_brand' => $this->request()->input('car_brand'),
+                    'car_model' => null,
+                    'class_id' => $newClassId
+                ]);
+                $car = $this->getDatabase()->first_found_in_db('Car', ['id' => $carId]);
+                
+                // Связываем клиента с машиной через таблицу Client_cars
+                if ($clientId) {
+                    $this->getDatabase()->insert('Client_cars', [
+                        'client_id' => $clientId,
+                        'car_id' => $carId
+                    ]);
+                }
+            } else {
+                $carId = $car['id'];
+                // Проверяем и обновляем класс, если он изменился
+                if ($car['class_id'] != $newClassId) {
+                    $this->getDatabase()->update('Car', ['class_id' => $newClassId], ['id' => $carId]);
+                    $car['class_id'] = $newClassId;
+                }
+                
+                // Проверяем, связан ли клиент с этой машиной
+                if ($clientId) {
+                    $existingLink = $this->getDatabase()->first_found_in_db('Client_cars', [
+                        'client_id' => $clientId,
+                        'car_id' => $carId
+                    ]);
+                    
+                    if (!$existingLink) {
+                        // Связываем клиента с машиной
+                        $this->getDatabase()->insert('Client_cars', [
+                            'client_id' => $clientId,
+                            'car_id' => $carId
+                        ]);
+                    }
+                }
+            }
+
+            return $clientId;
+
+        } catch (Exception $e) {
+            return false;
+        }
     }
 }

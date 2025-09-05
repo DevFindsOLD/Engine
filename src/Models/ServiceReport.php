@@ -13,6 +13,7 @@ class ServiceReport
     private float $total;
     private float $card;
     private float $cash;
+    private float $markup; // Добавляем поле наценки
 
     public function __construct(
         string $serviceName,
@@ -23,7 +24,8 @@ class ServiceReport
         string $paymentMethod,
         float $total,
         float $card,
-        float $cash
+        float $cash,
+        float $markup = 0.0 // Добавляем параметр наценки
     ) {
         $this->serviceName = $serviceName;
         $this->carBrand = $carBrand;
@@ -34,6 +36,7 @@ class ServiceReport
         $this->total = $total;
         $this->card = $card;
         $this->cash = $cash;
+        $this->markup = $markup; // Инициализируем наценку
     }
 
     public function serviceName(): string
@@ -79,5 +82,10 @@ class ServiceReport
     public function cash(): float
     {
         return $this->cash;
+    }
+
+    public function markup(): float
+    {
+        return $this->markup;
     }
 }

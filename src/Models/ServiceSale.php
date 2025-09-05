@@ -14,7 +14,8 @@ class ServiceSale
         private $status,
         private $car_id,
         private $cash_amount = null,
-        private $non_cash_amount = null
+        private $non_cash_amount = null,
+        private $markup = 0.0
     ) {
     }
 
@@ -71,5 +72,10 @@ class ServiceSale
     public function non_cash_amount()
     {
         return $this->non_cash_amount;
+    }
+
+    public function markup()
+    {
+        return $this->markup;
     }
 }

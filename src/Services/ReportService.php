@@ -36,7 +36,7 @@ class ReportService
         JOIN check_items ON check_items.check_id = checks.id
         JOIN users ON checks.operator_name COLLATE utf8mb4_unicode_ci = users.username COLLATE utf8mb4_unicode_ci
         JOIN Product ON check_items.name COLLATE utf8mb4_unicode_ci = Product.name COLLATE utf8mb4_unicode_ci
-        WHERE checks.report_type = 'product'
+        WHERE checks.report_type = 'product' AND checks.payment_status = 'completed'
     ";
 
         $params = [];
@@ -92,27 +92,25 @@ class ReportService
                 checks.car_number AS car_number,
                 Car_Classes.name AS car_class, -- Добавляем имя класса
                 checks.date AS sale_date,
-                CASE 
-                    WHEN checks.card > 0 AND checks.cash <= 0 THEN check_items.total
-                    ELSE 0
-                END AS card,
-                CASE 
-                    WHEN checks.cash > 0 AND checks.card <= 0 THEN check_items.total
-                    ELSE 0
-                END AS cash,
+                checks.card AS card,
+                checks.cash AS cash,
                 CASE 
                     WHEN checks.cash > 0 AND checks.card <= 0 THEN 'cash'
                     WHEN checks.card > 0 AND checks.cash <= 0 THEN 'card'
-                    WHEN checks.cash > 0 AND checks.card > 0 THEN 'cash'
+                    WHEN checks.cash > 0 AND checks.card > 0 THEN 'cash_card'
                     ELSE 'unknown'
                 END AS payment_method,
-                check_items.total AS total
+                (check_items.total + COALESCE(checks.markup, 0.00)) AS total,
+                COALESCE(checks.markup, 0.00) AS markup
             FROM checks
             JOIN check_items ON check_items.check_id = checks.id
             JOIN Service ON check_items.name COLLATE utf8mb4_unicode_ci = Service.name COLLATE utf8mb4_unicode_ci
             LEFT JOIN Car ON checks.car_number = Car.state_number -- Присоединяем таблицу Car
             LEFT JOIN Car_Classes ON Car.class_id = Car_Classes.id -- Присоединяем таблицу Car_Classes
-            WHERE checks.report_type = 'service'
+            LEFT JOIN Service_Sale ON Service_Sale.service_id = Service.id 
+                AND Service_Sale.car_id = Car.id 
+                AND DATE(Service_Sale.sale_date) = DATE(checks.date)
+            WHERE checks.report_type = 'service' AND checks.payment_status = 'completed'
         ";
 
         $params = [];
@@ -152,7 +150,8 @@ class ReportService
                 $report['payment_method'],
                 $report['total'] ?? 0.0,
                 $report['card'] ?? 0.0,
-                $report['cash'] ?? 0.0
+                $report['cash'] ?? 0.0,
+                $report['markup'] ?? 0.0
             );
         }, $reports);
         return $reports;

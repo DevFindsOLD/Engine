@@ -30,6 +30,8 @@ $services_array = $data['service']->getAllFromDBAsArray();
 <?php $render->component('dashboard_header'); ?>
 <!-- Сайдбар с меню -->
 <?php $render->component('menu_sidebar'); ?>
+<!-- Подключаем попап для оплаты -->
+<?php $render->component('modals/payment_popup'); ?>
 <!-- Тело страницы -->
 <!-- Контейнер с содержимым страницы -->
 <div class="page-content-container">
@@ -53,7 +55,8 @@ $services_array = $data['service']->getAllFromDBAsArray();
                 const carsJS = <?php echo json_encode($data['cars'], JSON_UNESCAPED_UNICODE); ?>;
             </script>
 
-            <form id="carWashContainer" action="/admin/dashboard/service_sales/addNewServiceSale" method="post" class="tab-content" style="display: block;">
+            <form id="carWashContainer" action="/admin/dashboard/service_sales" method="post" class="tab-content" style="display: block;">
+                <input type="hidden" name="operation_type" value="service">
                 <!-- Блок с множеством услуг -->
                 <div id="servicesLinesContainer" >
                     <!-- Одна строка (пример) -->
@@ -97,8 +100,8 @@ $services_array = $data['service']->getAllFromDBAsArray();
                             </select>
                         </li>
                         <li>
-                            <label class="about-service-form-label">Скидка</label>
-                            <input type="text" placeholder="Ввести промокод" name="discount_code">
+                            <label class="about-service-form-label">Наценка</label>
+                            <input type="number" min="0" step="0.01" placeholder="0 руб" name="markup" id="markupInput">
                         </li>
                     </ul>
                     <ul class="about-service-forms-second-column">
@@ -153,40 +156,148 @@ $services_array = $data['service']->getAllFromDBAsArray();
                             </label>
                         </fieldset>
                     </div>
-                    <div id="splitPaymentFieldsService" class="split-payment-fields about-service-forms" style="display:none; margin-bottom: 10px; margin-right: 80px;">
-                        <ul class="about-service-forms-first-column">
+                    <div id="splitPaymentFieldsService" class="split-payment-fields" style="display:none;">
+                        <ul>
                             <li>
                                 <label class="about-service-form-label">Сумма наличными</label>
-                                <input type="number" min="0" step="0.01" name="cash_amount" class="about-service-form" placeholder="0 руб">
+                                <input type="number" min="0" step="0.01" name="cash_amount" placeholder="0 руб">
                             </li>
-                        </ul>
-                        <ul class="about-service-forms-second-column">
                             <li>
                                 <label class="about-service-form-label">Сумма безналичными</label>
-                                <input type="number" min="0" step="0.01" name="card_amount" class="about-service-form" placeholder="0 руб">
+                                <input type="number" min="0" step="0.01" name="card_amount" placeholder="0 руб">
                             </li>
                         </ul>
                     </div>
-                    <div class="total-amount">
-                        <label class="total-amount-label">Итоговая сумма</label>
-                        <div name="total_amount_service" class="total-amount-value" id="serviceTotal">0 руб</div>
+                    <div class="payment-calculations">
+                        <div class="total-amount">
+                            <label class="total-amount-label">Итоговая сумма</label>
+                            <div name="total_amount_service" class="total-amount-value" id="serviceTotal">0 руб</div>
+                        </div>
+                        
+                        <!-- Поле для ввода полученной суммы и расчета сдачи -->
+                        <div class="received-amount">
+                            <label class="about-service-form-label">Получено от клиента</label>
+                            <input type="number" min="0" step="0.01" name="received_amount" id="receivedAmountService" placeholder="0 руб">
+                        </div>
+                        
+                        <div class="change-amount">
+                            <label class="total-amount-label">Сдача</label>
+                            <div class="total-amount-value" id="serviceChange">0 руб</div>
+                        </div>
                     </div>
-
-                    
                 </div>
                 
-                <button type="submit" class="save-button">Сохранить</button>
+                <button type="button" class="save-button" id="paymentButton">Оплата</button>
             </form>
+            
+            <!-- Блок управления платежами (скрыт по умолчанию) -->
+            <div id="paymentControlsService" class="payment-controls" style="display: none;">
+                <div class="payment-status pending">Ожидание оплаты</div>
+                <button type="button" class="confirm-payment" onclick="showPaymentPopup('service')">Оплачено</button>
+                <button type="button" class="reject-payment" onclick="showPaymentPopup('service')">Отклонено</button>
+            </div>
+
+            <?php $render->component('modals/payment_popup'); ?>
 
             <script>
                 const productsJS = <?php echo json_encode($products, JSON_UNESCAPED_UNICODE); ?>;
+                
+                // Обработчик кнопки "Оплата"
+                document.getElementById('paymentButton').addEventListener('click', function(e) {
+                    e.preventDefault(); // Отменяем отправку формы
+
+                    // Собираем данные формы
+                    const form = document.getElementById('carWashContainer');
+                    const formData = new FormData(form);
+
+                    // Отправляем запрос на создание pending продажи
+                    fetch('/admin/dashboard/service_sales/createPendingSale', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Create pending sale response:', data);
+                        if (data.success) {
+                            // Сохраняем данные о продаже
+                            pendingSaleData = data.sale;
+                            // Показываем попап подтверждения
+                            showPaymentPopup('service');
+                        } else {
+                            alert('Ошибка при создании продажи: ' + (data.message || 'Неизвестная ошибка'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Произошла ошибка при создании продажи');
+                    });
+                });
+
+                // Показать попап оплаты
+                function showPaymentPopup(type) {
+                    openPaymentPopup({
+                        title: 'Подтверждение',
+                        message: 'Оплата прошла?',
+                        onOk: function() {
+                            // Обновляем статус на completed в БД
+                            fetch('/goods-and-services/update-payment-status', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ 
+                                    sale_id: pendingSaleData.id, 
+                                    status: 'completed', 
+                                    type: type 
+                                })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    console.log('Payment status updated to completed');
+                                } else {
+                                    console.error('Error updating payment status:', data.message);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                            });
+                        },
+                        onCancel: function() {
+                            // Обновляем статус на canceled в БД
+                            fetch('/goods-and-services/update-payment-status', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ 
+                                    sale_id: pendingSaleData.id, 
+                                    status: 'cancelled', 
+                                    type: type 
+                                })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    console.log('Payment status updated to cancelled');
+                                } else {
+                                    console.error('Error updating payment status:', data.message);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                            });
+                        }
+                    });
+                };
             </script>
 
             <form id="cafeContainer"
-                action="/admin/dashboard/service_sales/addNewProductSale"
+                action="/admin/dashboard/service_sales"
                 method="post"
                 style="display: block;"
                 class="tab-content">
+                <input type="hidden" name="operation_type" value="product">
 
                 <div id="productLinesContainer">
                     <!-- Одна строка (изначальная) -->
@@ -216,6 +327,12 @@ $services_array = $data['service']->getAllFromDBAsArray();
                 <!-- Кнопка добавления новой строки (ещё один товар) -->
                 <button type="button" id="addLineBtn">Добавить товар</button>
 
+                <!-- Поле для наценки -->
+                <div style="margin: 15px 0;">
+                    <label class="about-service-form-label">Наценка</label>
+                    <input type="number" min="0" step="0.01" placeholder="0 руб" name="markup" id="markupInputProduct">
+                </div>
+
                 <div class="payment-section" id="paymentSectionProduct">
                     <div class="payment-options">
                         <label>Выбрать расчет</label>
@@ -231,28 +348,47 @@ $services_array = $data['service']->getAllFromDBAsArray();
                             </label>
                         </fieldset>
                     </div>
-                    <div id="splitPaymentFieldsProduct" class="split-payment-fields about-service-forms" style="display:none; margin-bottom: 10px; margin-right: 80px;">
-                        <ul class="about-service-forms-first-column">
+                    <div id="splitPaymentFieldsProduct" class="split-payment-fields" style="display:none;">
+                        <ul>
                             <li>
                                 <label class="about-service-form-label">Сумма наличными</label>
-                                <input type="number" min="0" step="0.01" name="cash_amount" class="about-service-form" placeholder="0 руб">
+                                <input type="number" min="0" step="0.01" name="cash_amount" placeholder="0 руб">
                             </li>
-                        </ul>
-                        <ul class="about-service-forms-second-column">
                             <li>
                                 <label class="about-service-form-label">Сумма безналичными</label>
-                                <input type="number" min="0" step="0.01" name="card_amount" class="about-service-form" placeholder="0 руб">
+                                <input type="number" min="0" step="0.01" name="card_amount" placeholder="0 руб">
                             </li>
                         </ul>
                     </div>
-                    <div class="total-amount">
-                        <label>Итоговая сумма</label>
-                        <div name="total_amount" class="total-amount-value" id="productTotal">0 руб</div>
+                    <div class="payment-calculations">
+                        <div class="total-amount">
+                            <label>Итоговая сумма</label>
+                            <div name="total_amount" class="total-amount-value" id="productTotal">0 руб</div>
+                        </div>
+                        
+                        <!-- Поле для ввода полученной суммы и расчета сдачи -->
+                        <div class="received-amount">
+                            <label class="about-service-form-label">Получено от клиента</label>
+                            <input type="number" min="0" step="0.01" name="received_amount" id="receivedAmountProduct" placeholder="0 руб">
+                        </div>
+                        
+                        <div class="change-amount">
+                            <label class="total-amount-label">Сдача</label>
+                            <div class="total-amount-value" id="productChange">0 руб</div>
+                        </div>
                     </div>
                 </div>
 
-                <button type="submit" id="saveLineBtn">Сохранить</button>
+                <button type="submit" id="saveLineBtn">Оплата</button>
+                
             </form>
+            
+            <!-- Блок управления платежами для товаров (скрыт по умолчанию) -->
+            <div id="paymentControlsProduct" class="payment-controls" style="display: none;">
+                <div class="payment-status pending">Ожидание оплаты</div>
+                <button type="button" class="confirm-payment" onclick="confirmPayment('product')">Оплачено</button>
+                <button type="button" class="reject-payment" onclick="rejectPayment('product')">Отклонено</button>
+            </div>
         </div>
     </div>
 </div>
@@ -573,6 +709,11 @@ if (classSelect) {
             console.log('Service:', opt.textContent, 'Base Price:', basePrice);
         });
 
+        // Добавляем наценку
+        const markupInput = document.getElementById('markupInput');
+        const markup = parseFloat(markupInput?.value || 0);
+        total += markup;
+
         total = Math.round(total * 100) / 100;
         if (serviceTotalElem) {
             serviceTotalElem.textContent = `${total} руб`;
@@ -747,6 +888,7 @@ if (classSelect) {
             if (!opt) return;
             total += (parseFloat(opt.dataset.price) || 0) * (parseInt(inp.value, 10) || 0);
         });
+        
         total = Math.round(total * 100) / 100;
         if (productTotalElem) {
             productTotalElem.textContent = `${total} руб`;
@@ -882,6 +1024,414 @@ if (classSelect) {
     }
     setupSplitPayment('paymentSectionService', 'splitPaymentFieldsService', 'serviceTotal', 'carWashContainer');
     setupSplitPayment('paymentSectionProduct', 'splitPaymentFieldsProduct', 'productTotal', 'cafeContainer');
+
+    // Обработчик события для поля наценки услуг
+    const markupInput = document.getElementById('markupInput');
+    if (markupInput) {
+        markupInput.addEventListener('input', () => {
+            updateServiceTotal();
+        });
+    }
+
+    // ================================
+    // Расчет сдачи
+    // ================================
+    function setupChangeCalculation(receivedInputId, totalElemId, changeElemId) {
+        const receivedInput = document.getElementById(receivedInputId);
+        const totalElem = document.getElementById(totalElemId);
+        const changeElem = document.getElementById(changeElemId);
+        
+        if (!receivedInput || !totalElem || !changeElem) return;
+        
+        function calculateChange() {
+            const total = parseFloat((totalElem.textContent || '0').replace(/[^\d.]/g, '')) || 0;
+            const received = parseFloat(receivedInput.value) || 0;
+            const change = Math.max(0, received - total);
+            
+            changeElem.textContent = `${change.toFixed(2)} руб`;
+            
+            // Валидация
+            if (received < total) {
+                receivedInput.style.borderColor = '#D33B4C';
+                receivedInput.title = 'Полученная сумма меньше итоговой!';
+            } else {
+                receivedInput.style.borderColor = '';
+                receivedInput.title = '';
+            }
+            
+            // Обновляем стиль кнопки сохранения
+            const form = receivedInput.closest('form');
+            if (form) {
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    if (received < total) {
+                        submitBtn.disabled = true;
+                        submitBtn.style.backgroundColor = '#D33B4C';
+                        submitBtn.style.cursor = 'not-allowed';
+                    } else {
+                        submitBtn.disabled = false;
+                        submitBtn.style.backgroundColor = '#707FDD';
+                        submitBtn.style.cursor = 'pointer';
+                    }
+                }
+            }
+        }
+        
+        receivedInput.addEventListener('input', calculateChange);
+        
+        // При изменении итоговой суммы тоже пересчитывать сдачу
+        const observer = new MutationObserver(calculateChange);
+        observer.observe(totalElem, { childList: true, subtree: true });
+    }
+    
+    // Настройка расчета сдачи для услуг и товаров
+    setupChangeCalculation('receivedAmountService', 'serviceTotal', 'serviceChange');
+    setupChangeCalculation('receivedAmountProduct', 'productTotal', 'productChange');
+
+    // ================================
+    // Валидация формы перед отправкой
+    // ================================
+    
+    // Для формы услуг
+    const carWashForm = document.getElementById('carWashContainer');
+    if (carWashForm) {
+        carWashForm.addEventListener('submit', function(e) {
+            e.preventDefault(); // Предотвращаем стандартную отправку
+            
+            const receivedAmount = parseFloat(document.getElementById('receivedAmountService').value) || 0;
+            const total = parseFloat((document.getElementById('serviceTotal').textContent || '0').replace(/[^\d.]/g, '')) || 0;
+            
+            if (receivedAmount < total) {
+                alert('Полученная сумма не может быть меньше итоговой суммы!');
+                document.getElementById('receivedAmountService').style.borderColor = '#D33B4C';
+                return false;
+            }
+            
+            // Проверяем, что выбрана хотя бы одна услуга
+            const selectedServices = document.querySelectorAll('.service-line .serviceSelect option:checked');
+            if (selectedServices.length === 0) {
+                alert('Выберите хотя бы одну услугу!');
+                return false;
+            }
+            
+            // Скрываем форму и показываем блок управления платежами
+            carWashForm.style.display = 'none';
+            document.getElementById('paymentControlsService').style.display = 'block';
+            
+            // Создаем продажу со статусом "pending"
+            createPendingSale('service');
+        });
+    }
+    
+    // Для формы товаров
+    const cafeForm = document.getElementById('cafeContainer');
+    if (cafeForm) {
+        cafeForm.addEventListener('submit', function(e) {
+            e.preventDefault(); // Предотвращаем стандартную отправку
+            
+            const receivedAmount = parseFloat(document.getElementById('receivedAmountProduct').value) || 0;
+            const total = parseFloat((document.getElementById('productTotal').textContent || '0').replace(/[^\d.]/g, '')) || 0;
+            
+            if (receivedAmount < total) {
+                alert('Полученная сумма не может быть меньше итоговой суммы!');
+                document.getElementById('receivedAmountProduct').style.borderColor = '#D33B4C';
+                return false;
+            }
+            
+            // Проверяем, что выбран хотя бы один товар
+            const selectedProducts = document.querySelectorAll('.product-line .productSelect option:checked');
+            if (selectedProducts.length === 0) {
+                alert('Выберите хотя бы один товар!');
+                return false;
+            }
+            
+            // Скрываем форму и показываем блок управления платежами
+            cafeForm.style.display = 'none';
+            document.getElementById('paymentControlsProduct').style.display = 'block';
+            
+            // Создаем продажу со статусом "pending"
+            createPendingSale('product');
+        });
+    }
+
+    // ================================
+    // Функции управления платежами
+    // ================================
+    
+    let pendingSaleData = null;
+    
+    // Создание продажи со статусом "pending"
+    function createPendingSale(type) {
+        console.log('createPendingSale called with type:', type);
+        const formData = new FormData();
+        
+        if (type === 'service') {
+            const form = document.getElementById('carWashContainer');
+            if (!form) {
+                console.error('carWashContainer form not found');
+                alert('Ошибка: форма не найдена');
+                return;
+            }
+            
+            const formDataObj = new FormData(form);
+            
+            // Проверяем обязательные поля
+            const requiredFields = ['employee_id', 'state_number', 'payment_type'];
+            for (let field of requiredFields) {
+                if (!formDataObj.get(field)) {
+                    console.error('Required field missing:', field);
+                    alert(`Не заполнено поле: ${field}`);
+                    return;
+                }
+            }
+            
+            // Добавляем все данные формы
+            for (let [key, value] of formDataObj.entries()) {
+                formData.append(key, value);
+                console.log('Service form data:', key, '=', value);
+            }
+            
+            // Добавляем тип операции
+            formData.append('operation_type', 'service');
+            
+            // Добавляем данные о наценке и полученной сумме
+            const markup = document.getElementById('markupInput') ? parseFloat(document.getElementById('markupInput').value) || 0 : 0;
+            const receivedAmount = parseFloat(document.getElementById('receivedAmountService').value) || 0;
+            formData.append('markup', markup);
+            formData.append('received_amount', receivedAmount);
+            
+            console.log('Service markup:', markup, 'receivedAmount:', receivedAmount);
+            
+        } else if (type === 'product') {
+            const form = document.getElementById('cafeContainer');
+            if (!form) {
+                console.error('cafeContainer form not found');
+                alert('Ошибка: форма не найдена');
+                return;
+            }
+            
+            const formDataObj = new FormData(form);
+            
+            // Добавляем все данные формы
+            for (let [key, value] of formDataObj.entries()) {
+                formData.append(key, value);
+                console.log('Product form data:', key, '=', value);
+            }
+            
+            // Добавляем тип операции
+            formData.append('operation_type', 'product');
+            
+            // Добавляем данные о наценке и полученной сумме
+            const markup = document.getElementById('markupInputProduct') ? parseFloat(document.getElementById('markupInputProduct').value) || 0 : 0;
+            const receivedAmount = parseFloat(document.getElementById('receivedAmountProduct').value) || 0;
+            formData.append('markup', markup);
+            formData.append('received_amount', receivedAmount);
+            
+            console.log('Product markup:', markup, 'receivedAmount:', receivedAmount);
+        }
+        
+        // Логируем все данные формы перед отправкой
+        console.log('FormData before sending:');
+        for (let [key, value] of formData.entries()) {
+            console.log(key, '=', value);
+        }
+        
+        // Отправляем данные на сервер для создания pending продажи
+        fetch('/admin/dashboard/service_sales/createPendingSale', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            // Получаем текст ответа для отладки
+            return response.text().then(text => {
+                console.log('Raw response text:', text);
+                
+                // Пытаемся распарсить JSON
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Parsed JSON data:', data);
+                    return data;
+                } catch (jsonError) {
+                    console.error('JSON parsing error:', jsonError);
+                    console.error('Response text that failed to parse:', text);
+                    throw new Error(`Ошибка парсинга JSON: ${jsonError.message}. Ответ сервера: ${text.substring(0, 200)}`);
+                }
+            });
+        })
+        .then(data => {
+            console.log('Server response:', data);
+            if (data.success) {
+                pendingSaleData = data.sale;
+                console.log('Pending sale created:', pendingSaleData);
+            } else {
+                console.error('Server error:', data.message);
+                alert('Ошибка при создании продажи: ' + (data.message || 'Неизвестная ошибка'));
+                // Возвращаем форму обратно
+                if (type === 'service') {
+                    document.getElementById('carWashContainer').style.display = 'block';
+                    document.getElementById('paymentControlsService').style.display = 'none';
+                    pendingSaleData = null;
+                } else {
+                    document.getElementById('cafeContainer').style.display = 'block';
+                    document.getElementById('paymentControlsProduct').style.display = 'none';
+                    pendingSaleData = null;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error creating pending sale:', error);
+            alert('Ошибка при создании продажи: ' + error.message);
+            // Возвращаем форму обратно при ошибке
+            if (type === 'service') {
+                document.getElementById('carWashContainer').style.display = 'block';
+                document.getElementById('paymentControlsService').style.display = 'none';
+            } else {
+                document.getElementById('cafeContainer').style.display = 'block';
+                document.getElementById('paymentControlsProduct').style.display = 'none';
+            }
+            pendingSaleData = null;
+        });
+    }
+    
+    // Обновляем функцию confirmPayment для работы без перехода на другую страницу
+    function confirmPayment(type) {
+        if (!pendingSaleData) {
+            openPaymentPopup({
+                title: 'Ошибка',
+                message: 'Данные продажи не найдены',
+                onOk: null,
+                onCancel: null
+            });
+            return;
+        }
+
+        openPaymentPopup({
+            title: 'Подтверждение оплаты',
+            message: 'Клиент оплатил услугу?',
+            onOk: function() {
+                fetch('/admin/dashboard/service_sales/updatePaymentStatus', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ sale_id: pendingSaleData.id, status: 'completed', type: type })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.querySelector('.payment-status').classList.remove('pending');
+                        document.querySelector('.payment-status').classList.add('completed');
+                        document.querySelector('.payment-status').innerText = 'Оплачено';
+                    } else {
+                        openPaymentPopup({
+                            title: 'Ошибка',
+                            message: 'Ошибка при обновлении статуса оплаты: ' + data.message,
+                            onOk: null,
+                            onCancel: null
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating payment status:', error);
+                    openPaymentPopup({
+                        title: 'Ошибка',
+                        message: 'Ошибка при обновлении статуса оплаты',
+                        onOk: null,
+                        onCancel: null
+                    });
+                });
+            },
+            onCancel: null
+        });
+    }
+    
+    // Обновляем функцию rejectPayment для работы без перехода на другую страницу
+    function rejectPayment(type) {
+        if (!pendingSaleData) {
+            openPaymentPopup({
+                title: 'Ошибка',
+                message: 'Данные продажи не найдены',
+                onOk: null,
+                onCancel: null
+            });
+            return;
+        }
+
+        openPaymentPopup({
+            title: 'Отклонение оплаты',
+            message: 'Вы уверены, что хотите отклонить оплату?',
+            onOk: function() {
+                fetch('/admin/dashboard/service_sales/updatePaymentStatus', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ sale_id: pendingSaleData.id, status: 'canceled', type: type })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.querySelector('.payment-status').classList.remove('pending');
+                        document.querySelector('.payment-status').classList.add('rejected');
+                        document.querySelector('.payment-status').innerText = 'Отклонено';
+                    } else {
+                        openPaymentPopup({
+                            title: 'Ошибка',
+                            message: 'Ошибка при обновлении статуса оплаты: ' + data.message,
+                            onOk: null,
+                            onCancel: null
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating payment status:', error);
+                    openPaymentPopup({
+                        title: 'Ошибка',
+                        message: 'Ошибка при обновлении статуса оплаты',
+                        onOk: null,
+                        onCancel: null
+                    });
+                });
+            },
+            onCancel: null
+        });
+        // Добавить поле для причины, если это отклонение
+        setTimeout(function() {
+            if (!document.getElementById('paymentPopupInputReason')) {
+                var input = document.createElement('input');
+                input.type = 'text';
+                input.id = 'paymentPopupInputReason';
+                input.placeholder = 'Причина отклонения';
+                input.style = 'width: 90%; margin: 10px auto; display: block; padding: 8px; border-radius: 6px; border: 1px solid #ccc;';
+                var msg = document.getElementById('paymentPopupMessage');
+                if (msg) msg.appendChild(input);
+            }
+        }, 100);
+    }
+
+    // Отключаем стандартное поведение кнопки "Оплата" и вызываем попап
+    const paymentButton = document.getElementById('paymentButton');
+    if (paymentButton) {
+        paymentButton.addEventListener('click', function(event) {
+            event.preventDefault(); // Отключаем отправку формы
+            openPaymentPopup({
+                title: 'Подтверждение оплаты',
+                message: 'Вы уверены, что хотите продолжить оплату?',
+                onOk: function() {
+                    // Здесь можно добавить логику для обработки оплаты
+                    console.log('Оплата подтверждена');
+                },
+                onCancel: function() {
+                    console.log('Оплата отменена');
+                }
+            });
+        });
+    }
 });
 </script>
 

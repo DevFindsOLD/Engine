@@ -78,6 +78,7 @@ class ReportsController extends Controller
                     'payment_method' => htmlspecialchars($r->paymentMethod()),
                     'cash' => number_format($r->cash(), 2),
                     'card' => number_format($r->card(), 2),
+                    'markup' => number_format($r->markup(), 2),
                     'total' => number_format($r->total(), 2),
                 ];
             }
@@ -172,6 +173,7 @@ class ReportsController extends Controller
                         'payment_method' => $r->paymentMethod(),
                         'cash' => $r->cash(),
                         'card' => $r->card(),
+                        'markup' => $r->markup(),
                         'total' => $r->total(),
                     ];
                 }
@@ -225,6 +227,7 @@ class ReportsController extends Controller
                 ['header' => 'Тип оплаты', 'key' => 'payment_method', 'format' => 'string'],
                 ['header' => 'Сумма нал.', 'key' => 'cash', 'format' => 'number', 'number_format' => '#,##0.00'],
                 ['header' => 'Сумма безнал.', 'key' => 'card', 'format' => 'number', 'number_format' => '#,##0.00'],
+                ['header' => 'Наценка', 'key' => 'markup', 'format' => 'number', 'number_format' => '#,##0.00'],
                 ['header' => 'Сумма', 'key' => 'total', 'format' => 'number', 'number_format' => '#,##0.00'],
             ] : [
                 ['header' => 'Товар', 'key' => 'product_name', 'format' => 'string'],

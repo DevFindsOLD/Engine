@@ -103,8 +103,13 @@
                 <thead>
                     <tr>
                         <th>Наименование</th>
-                        <th>Кол-во</th>
+                        <?php if ($check['report_type'] !== 'service'): ?>
+                            <th>Кол-во</th>
+                        <?php endif; ?>
                         <th>Цена</th>
+                        <?php if (isset($markupData) && !empty($markupData)): ?>
+                            <th>Наценка</th>
+                        <?php endif; ?>
                         <th>Сумма</th>
                     </tr>
                 </thead>
@@ -112,8 +117,13 @@
                     <?php foreach ($items as $item): ?>
                         <tr>
                             <td><?= htmlspecialchars($item['name']) ?></td>
-                            <td><?= htmlspecialchars($item['quantity']) ?></td>
+                            <?php if ($check['report_type'] !== 'service'): ?>
+                                <td><?= htmlspecialchars($item['quantity']) ?></td>
+                            <?php endif; ?>
                             <td><?= number_format($item['price'], 2, '.', ' ') ?> руб.</td>
+                            <?php if (isset($markupData) && !empty($markupData)): ?>
+                                <td><?= isset($markupData[$item['name']]) ? number_format($markupData[$item['name']], 2, '.', ' ') : '0.00' ?> руб.</td>
+                            <?php endif; ?>
                             <td><?= number_format($item['total'], 2, '.', ' ') ?> руб.</td>
                         </tr>
                     <?php endforeach; ?>
@@ -128,6 +138,8 @@
             <p>Сдача: <?= number_format($check['change_amount'], 2, '.', ' ') ?> руб.</p>
             <p>Оператор: <?= htmlspecialchars($check['operator_name']) ?></p>
             <p>Итого: <?= number_format($check['total'], 2, '.', ' ') ?> руб.</p>
+            
+
         </div>
     </div>
 
@@ -136,7 +148,11 @@
         window.onload = function() {
             window.print();
         };
+
+
     </script>
+
+
 </body>
 
 </html>

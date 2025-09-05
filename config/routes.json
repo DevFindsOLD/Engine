@@ -326,6 +326,30 @@
         },
         {
             "method": "GET",
+            "uri": "/admin/dashboard/service_sales/addNewServiceSale",
+            "action": {
+                "controller": "Source\\Controllers\\GoodsAndServicesController",
+                "method": "addNewServiceSale"
+            },
+            "middlewares": [
+                "Source\\Middleware\\AuthMiddleware"
+            ],
+            "access_level": 1
+        },
+        {
+            "method": "GET",
+            "uri": "/admin/dashboard/service_sales/getClientByCarNumber",
+            "action": {
+                "controller": "Source\\Controllers\\GoodsAndServicesController",
+                "method": "getClientByCarNumber"
+            },
+            "middlewares": [
+                "Source\\Middleware\\AuthMiddleware"
+            ],
+            "access_level": 1
+        },
+        {
+            "method": "POST",
             "uri": "/admin/dashboard/service_sales/getClientByCarNumber",
             "action": {
                 "controller": "Source\\Controllers\\GoodsAndServicesController",
@@ -438,6 +462,54 @@
             "action": {
                 "controller": "Source\\Controllers\\GoodsAndServicesController",
                 "method": "addNewProductSale"
+            },
+            "middlewares": [
+                "Source\\Middleware\\AuthMiddleware"
+            ],
+            "access_level": 2
+        },
+        {
+            "method": "GET",
+            "uri": "/admin/dashboard/service_sales/addNewProductSale",
+            "action": {
+                "controller": "Source\\Controllers\\GoodsAndServicesController",
+                "method": "addNewProductSale"
+            },
+            "middlewares": [
+                "Source\\Middleware\\AuthMiddleware"
+            ],
+            "access_level": 2
+        },
+        {
+            "method": "POST",
+            "uri": "/admin/dashboard/service_sales/createPendingSale",
+            "action": {
+                "controller": "Source\\Controllers\\GoodsAndServicesController",
+                "method": "createPendingSale"
+            },
+            "middlewares": [
+                "Source\\Middleware\\AuthMiddleware"
+            ],
+            "access_level": 2
+        },
+        {
+            "method": "POST",
+            "uri": "/admin/dashboard/service_sales/confirmPayment",
+            "action": {
+                "controller": "Source\\Controllers\\GoodsAndServicesController",
+                "method": "confirmPayment"
+            },
+            "middlewares": [
+                "Source\\Middleware\\AuthMiddleware"
+            ],
+            "access_level": 2
+        },
+        {
+            "method": "POST",
+            "uri": "/admin/dashboard/service_sales/rejectPayment",
+            "action": {
+                "controller": "Source\\Controllers\\GoodsAndServicesController",
+                "method": "rejectPayment"
             },
             "middlewares": [
                 "Source\\Middleware\\AuthMiddleware"
@@ -753,7 +825,29 @@
             "Source\\Middleware\\AuthMiddleware"
         ],
         "access_level": 3
+    },
+    {
+        "method": "POST",
+        "uri": "/goods-and-services/update-payment-status",
+        "action": {
+            "controller": "Source\\Controllers\\GoodsAndServicesController",
+            "method": "updatePaymentStatus"
+        },
+        "middlewares": [
+            "Source\\Middleware\\AuthMiddleware"
+        ],
+        "access_level": 1
+    },
+    {
+        "method": "POST",
+        "uri": "/admin/dashboard/service_sales/createPendingSale",
+        "action": {
+            "controller": "Source\\Controllers\\GoodsAndServicesController",
+            "method": "createPendingSale"
+        },
+        "middlewares": [
+            "Source\\Middleware\\AuthMiddleware"
+        ],
+        "access_level": 1
     }
-        
-        
 ]

@@ -27,4 +27,198 @@
   display: block;
   font-family: var(--font-family, sans-serif);
   margin-bottom: 8px;
+}
+
+/* ================================
+   Стили для блоков информации об оплате
+   ================================ */
+
+.payment-calculations {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 15px;
+  gap: 20px;
+  flex-direction: row;
+  align-items: center;
+  padding: 20px;
+  background-color: #1E2128;
+  border-radius: 12px;
+}
+
+.payment-calculations .total-amount,
+.payment-calculations .received-amount,
+.payment-calculations .change-amount {
+  flex: 1;
+  min-width: 200px;
+  text-align: center;
+  padding: 10px;
+  background-color: #272B35;
+  border-radius: 8px;
+}
+
+.payment-calculations .total-amount-label,
+.payment-calculations .about-service-form-label {
+  color: var(--white);
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.payment-calculations .total-amount-value {
+  color: var(--white);
+  font-size: 18px;
+  font-weight: 600;
+  background-color: #272B35;
+  padding: 12px;
+  border-radius: 8px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.payment-calculations .received-amount input {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  background-color: #272B35;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  color: var(--white);
+  text-align: center;
+  transition: border-color 0.3s ease;
+}
+
+.payment-calculations .received-amount input:focus {
+  outline: none;
+  border-color: #707FDD;
+}
+
+.payment-calculations .received-amount input.error {
+  border-color: #D33B4C;
+}
+
+/* Стили для кнопок управления платежом */
+.payment-controls {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.payment-controls button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 0 10px;
+  transition: all 0.3s ease;
+  background-color: #707FDD;
+  color: white;
+}
+
+.payment-controls button:hover {
+  background-color: #5a6bc7;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.payment-controls .confirm-payment {
+  background-color: #28a745;
+  color: white;
+}
+
+.payment-controls .confirm-payment:hover {
+  background-color: #218838;
+  color: white;
+}
+
+.payment-controls .reject-payment {
+  background-color: #D33B4C;
+  color: white;
+}
+
+.payment-controls .reject-payment:hover {
+  background-color: #c82333;
+  color: white;
+}
+
+/* Стили для статуса платежа */
+.payment-status {
+  text-align: center;
+  margin: 15px 0;
+  padding: 10px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.payment-status.pending {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.payment-status.completed {
+  background-color: #28a745;
+  color: white;
+}
+
+.payment-status.rejected {
+  background-color: #D33B4C;
+  color: white;
+}
+
+/* Стили для payment section */
+.payment-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  margin-top: 20px;
+  background-color: #1E2128;
+  border-radius: 12px;
+}
+
+/* Стили для полей наличных и безналичных */
+.split-payment-fields {
+  margin: 15px 0;
+  padding: 15px;
+  background-color: #272B35;
+  border-radius: 8px;
+}
+
+.split-payment-fields ul {
+  display: flex;
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.split-payment-fields li {
+  flex: 1;
+}
+
+.split-payment-fields input {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  background-color: #272B35;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  color: var(--white);
+  text-align: center;
+  transition: border-color 0.3s ease;
+}
+
+.split-payment-fields input:focus {
+  outline: none;
+  border-color: #707FDD;
+}
+
+.split-payment-fields input.error {
+  border-color: #D33B4C;
 } 

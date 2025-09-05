@@ -1,0 +1,380 @@
+2025-08-24 16:17:09 - createPendingSale called with POST: Array
+(
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 68
+                )
+
+        )
+
+    [employee_id] => 11
+    [markup] => 50
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +7995446622
+    [payment_type] => cash
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 1400
+    [operation_type] => service
+)
+
+2025-08-24 16:17:09 - Operation type: service
+2025-08-24 16:21:49 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 72
+                )
+
+        )
+
+    [employee_id] => 11
+    [markup] => 150
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => cash
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 2000
+)
+
+2025-08-24 16:21:49 - Operation type: service
+2025-08-24 17:38:42 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 68
+                )
+
+        )
+
+    [employee_id] => 11
+    [markup] => 300
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => cash
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 2000
+)
+
+2025-08-24 17:38:42 - Operation type: service
+2025-08-24 17:40:36 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 68
+                )
+
+        )
+
+    [employee_id] => 11
+    [markup] => 0
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => cash
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 1400
+)
+
+2025-08-24 17:40:36 - Operation type: service
+2025-08-24 17:46:12 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 68
+                )
+
+        )
+
+    [employee_id] => 11
+    [markup] => 0
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => cash
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 1500
+)
+
+2025-08-24 17:46:12 - Operation type: service
+2025-08-24 17:49:10 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 65
+                )
+
+        )
+
+    [employee_id] => 11
+    [markup] => 0
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => cash
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 350
+)
+
+2025-08-24 17:49:10 - Operation type: service
+2025-08-24 18:07:51 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 67
+                )
+
+        )
+
+    [employee_id] => 11
+    [markup] => 
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => cash
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 800
+)
+
+2025-08-24 18:07:51 - Operation type: service
+2025-08-24 18:09:54 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 67
+                )
+
+        )
+
+    [employee_id] => 11
+    [markup] => 
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => cash
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 800
+)
+
+2025-08-24 18:09:54 - Operation type: service
+2025-08-24 18:56:47 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 70
+                )
+
+        )
+
+    [employee_id] => 11
+    [markup] => 300
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => cash_card
+    [cash_amount] => 1000
+    [card_amount] => 620.00
+    [received_amount] => 5000
+)
+
+2025-08-24 18:56:47 - Operation type: service
+2025-08-24 18:58:42 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [markup] => 
+    [car_brand] => 
+    [client_last_name] => 
+    [client_first_name] => 
+    [client_patronymic] => 
+    [client_phone] => 
+    [payment_type] => cash_card
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 
+)
+
+2025-08-24 18:58:42 - Operation type: service
+2025-09-05 13:52:50 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 74
+                )
+
+        )
+
+    [employee_id] => 9
+    [markup] => 
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => cash
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 400
+)
+
+2025-09-05 13:52:50 - Operation type: service
+2025-09-05 13:58:53 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 74
+                )
+
+        )
+
+    [employee_id] => 9
+    [markup] => 
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => card
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 400
+)
+
+2025-09-05 13:58:53 - Operation type: service
+2025-09-05 13:59:01 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 74
+                )
+
+        )
+
+    [employee_id] => 9
+    [markup] => 
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => card
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 
+)
+
+2025-09-05 13:59:01 - Operation type: service
+2025-09-05 13:59:49 - createPendingSale called with POST: Array
+(
+    [operation_type] => service
+    [class_id] => 7
+    [services] => Array
+        (
+            [0] => Array
+                (
+                    [service_id] => 74
+                )
+
+        )
+
+    [employee_id] => 9
+    [markup] => 10
+    [state_number] => A123BC77
+    [car_brand] => Toyota
+    [client_last_name] => 
+    [client_first_name] => Алексей
+    [client_patronymic] => 
+    [client_phone] => +79963362517
+    [payment_type] => card
+    [cash_amount] => 
+    [card_amount] => 
+    [received_amount] => 410
+)
+
+2025-09-05 13:59:49 - Operation type: service

@@ -135,6 +135,7 @@
                                             <th>Тип оплаты</th>
                                             <th>Сумма нал.</th>
                                             <th>Сумма безнал.</th>
+                                            <th>Наценка</th>
                                             <th>Сумма</th>
                                         <?php else: ?>
                                             <th>Наименование</th>
@@ -149,10 +150,10 @@
                                     </tr>
                                 </thead>
                                 <tbody id="reportBody">
-                                    <?php if (empty($reports)): ?>
-                                        <tr>
-                                            <td colspan="<?= ($reportType ?? 'product') === 'service' ? 7 : 6 ?>">Выберите параметры и нажмите "Сформировать" для отображения отчета</td>
-                                        </tr>
+                                                                            <?php if (empty($reports)): ?>
+                                            <tr>
+                                                <td colspan="<?= ($reportType ?? 'product') === 'service' ? 10 : 8 ?>">Выберите параметры и нажмите "Сформировать" для отображения отчета</td>
+                                            </tr>
                                     <?php else: ?>
                                         <?php foreach ($reports as $report): ?>
                                             <tr>
@@ -165,6 +166,7 @@
                                                     <td><?= htmlspecialchars($report['payment_method'] ?? '') ?></td>
                                                     <td><?= htmlspecialchars($report['cash'] ?? '') ?></td>
                                                     <td><?= htmlspecialchars($report['card'] ?? '') ?></td>
+                                                    <td><?= htmlspecialchars($report['markup'] ?? '') ?></td>
                                                     <td><?= htmlspecialchars($report['total'] ?? '') ?></td>
                                                 <?php else: ?>
                                                     <td><?= htmlspecialchars($report['product_name'] ?? '') ?></td>
